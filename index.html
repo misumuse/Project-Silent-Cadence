@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project: Silent Cadence</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07070a;
+            --surface: #0e0e14;
+            --surface2: #13131c;
+            --border: #1e1e2e;
+            --border2: #2a2a3d;
+            --text: #e2e2f0;
+            --text-muted: #6b6b8a;
+            --text-dim: #3a3a55;
+            --pink: #f0147a;
+            --pink-glow: rgba(240,20,122,0.3);
+            --blue: #14a8f0;
+            --cyan: #14f0d4;
+            --green: #14f07a;
+            --yellow: #f0c414;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Space Grotesk', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 16px;
+            user-select: none; overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background:
+                radial-gradient(ellipse 60% 40% at 20% 80%, rgba(240,20,122,0.05) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 80% 20%, rgba(20,168,240,0.05) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        .nav {
+            display: flex; gap: 4px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 4px; margin-bottom: 16px;
+            position: relative; z-index: 1;
+        }
+        .tab-btn {
+            background: none; border: none; color: var(--text-muted);
+            font-family: inherit; font-size: 0.85rem; font-weight: 600;
+            padding: 8px 22px; border-radius: 7px; cursor: pointer; transition: all 0.18s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { background: var(--pink); color: white; box-shadow: 0 0 16px var(--pink-glow); }
+        .app-layout { display: flex; gap: 16px; max-width: 1160px; width: 100%; position: relative; z-index: 1; }
+        .screen { display: none; width: 100%; gap: 16px; }
+        .screen.active { display: flex; }
+        .sidebar {
+            width: 290px; flex-shrink: 0;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 18px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .sidebar-title { font-size: 1.1rem; font-weight: 700; color: var(--text); padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .section-label { font-size: 0.68rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px; }
+        .ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+        .ctrl-label { font-size: 0.78rem; color: var(--text-muted); }
+        input[type="file"], input[type="number"], select {
+            background: var(--surface2); color: var(--text);
+            border: 1px solid var(--border2); border-radius: 7px;
+            padding: 7px 10px; font-family: inherit; font-size: 0.85rem; width: 100%; outline: none;
+            transition: border-color 0.15s;
+        }
+        input[type="number"]:focus, select:focus { border-color: var(--pink); }
+        input[type="file"] { font-size: 0.75rem; cursor: pointer; }
+        .btn {
+            width: 100%; border: none; border-radius: 7px; padding: 9px 14px;
+            font-family: inherit; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; transition: all 0.15s; text-align: center;
+        }
+        .btn-primary { background: var(--pink); color: white; }
+        .btn-primary:hover { filter: brightness(1.15); box-shadow: 0 0 14px var(--pink-glow); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; box-shadow: none; }
+        .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+        .btn-secondary:hover { border-color: var(--text-muted); }
+        .btn-danger { background: rgba(240,20,122,0.12); color: #ff6090; border: 1px solid rgba(240,20,122,0.2); }
+        .btn-danger:hover { background: rgba(240,20,122,0.2); }
+        .btn-green { background: var(--green); color: #07180f; }
+        .btn-green:hover { filter: brightness(1.1); }
+        .btn-toggle { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border2); }
+        .btn-toggle.on { background: rgba(20,240,122,0.15); color: var(--green); border-color: rgba(20,240,122,0.4); }
+        .hr { height: 1px; background: var(--border); margin: 2px 0; }
+        .badge { font-size: 0.72rem; font-weight: 600; padding: 4px 10px; border-radius: 5px; text-align: center; letter-spacing: 0.3px; }
+        .badge-warn { background: rgba(240,196,20,0.15); color: var(--yellow); border: 1px solid rgba(240,196,20,0.3); }
+        .badge-ok { background: rgba(20,240,122,0.15); color: var(--green); border: 1px solid rgba(20,240,122,0.3); }
+        .autochart-panel {
+            background: var(--surface2); border: 1px solid var(--border2);
+            border-radius: 9px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .intensity-row { display: flex; gap: 5px; }
+        .intensity-btn {
+            flex: 1; border: 1px solid var(--border2); background: var(--surface);
+            color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem; font-weight: 600; padding: 5px 4px; border-radius: 5px;
+            cursor: pointer; transition: all 0.14s; text-align: center;
+        }
+        .intensity-btn.active { border-color: var(--pink); background: rgba(240,20,122,0.12); color: var(--pink); }
+        .autochart-progress-wrap { display: none; flex-direction: column; gap: 4px; }
+        .autochart-progress-wrap.visible { display: flex; }
+        .autochart-progress-bar-bg { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+        .autochart-progress-bar-fill {
+            height: 100%; background: var(--pink); border-radius: 2px; width: 0%;
+            transition: width 0.1s; box-shadow: 0 0 8px var(--pink-glow);
+        }
+        .autochart-progress-label { font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        .main-stage {
+            flex: 1; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 18px;
+            display: flex; flex-direction: column; align-items: center; gap: 14px;
+        }
+        .stage-hint { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+        .game-viewport {
+            position: relative; width: 320px; height: 540px;
+            background: #050508; border: 1px solid var(--border2); border-radius: 10px;
+            overflow: hidden; box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+        }
+        .lane-bg { position: absolute; top: 0; bottom: 0; width: 80px; pointer-events: none; z-index: 0; }
+        .lane-bg-0 { left: 0;    background: linear-gradient(to right, rgba(240,20,122,0.04), transparent); }
+        .lane-bg-1 { left: 80px; background: linear-gradient(to right, rgba(20,168,240,0.04), transparent); }
+        .lane-bg-2 { left: 160px;background: linear-gradient(to right, rgba(20,168,240,0.04), transparent); }
+        .lane-bg-3 { left: 240px;background: linear-gradient(to right, transparent, rgba(240,20,122,0.04)); }
+        .lane-divider { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.06); z-index: 4; pointer-events: none; }
+        .hit-zone { position: absolute; bottom: 60px; width: 100%; height: 14px; z-index: 5; pointer-events: none; }
+        .hit-zone-line { position: absolute; bottom: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.15); }
+        .receptor { position: absolute; bottom: 0; width: 80px; height: 14px; border-radius: 3px 3px 0 0; }
+        .receptor-0 { left: 0;    background: linear-gradient(to bottom, transparent, rgba(240,20,122,0.2)); border-top: 2px solid rgba(240,20,122,0.45); }
+        .receptor-1 { left: 80px; background: linear-gradient(to bottom, transparent, rgba(20,168,240,0.2)); border-top: 2px solid rgba(20,168,240,0.45); }
+        .receptor-2 { left: 160px;background: linear-gradient(to bottom, transparent, rgba(20,168,240,0.2)); border-top: 2px solid rgba(20,168,240,0.45); }
+        .receptor-3 { left: 240px;background: linear-gradient(to bottom, transparent, rgba(240,20,122,0.2)); border-top: 2px solid rgba(240,20,122,0.45); }
+        .hit-flash { position: absolute; bottom: 40px; width: 80px; height: 80px; z-index: 4; opacity: 0; pointer-events: none; border-radius: 50%; }
+        .hit-flash-0,.hit-flash-3 { background: radial-gradient(circle, rgba(240,20,122,0.55) 0%, transparent 70%); }
+        .hit-flash-1,.hit-flash-2 { background: radial-gradient(circle, rgba(20,168,240,0.55) 0%, transparent 70%); }
+        #studio-grid { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+        .grid-line { position: absolute; left: 0; width: 100%; height: 1px; }
+        .grid-measure { background: rgba(255,255,255,0.18); }
+        .grid-beat    { background: rgba(255,255,255,0.07); }
+        .grid-sub     { background: rgba(255,255,255,0.025); }
+        .grid-measure-label {
+            position: absolute; left: 3px; font-size: 9px;
+            font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.22);
+            transform: translateY(-100%); pointer-events: none; z-index: 2;
+        }
+        #studio-notes, #play-notes { position: absolute; inset: 0; z-index: 3; }
+        .note { position: absolute; width: 80px; height: 18px; box-sizing: border-box; border-radius: 3px 3px 0 0; }
+        .note-0 { left: 0;    background: linear-gradient(to bottom, #ff4499, #a00044); border-top: 2px solid #ff77bb; box-shadow: 0 0 8px rgba(240,20,122,0.4); }
+        .note-1 { left: 80px; background: linear-gradient(to bottom, #44b8ff, #006699); border-top: 2px solid #77ccff; box-shadow: 0 0 8px rgba(20,168,240,0.4); }
+        .note-2 { left: 160px;background: linear-gradient(to bottom, #44b8ff, #006699); border-top: 2px solid #77ccff; box-shadow: 0 0 8px rgba(20,168,240,0.4); }
+        .note-3 { left: 240px;background: linear-gradient(to bottom, #ff4499, #a00044); border-top: 2px solid #ff77bb; box-shadow: 0 0 8px rgba(240,20,122,0.4); }
+        .note-hold-body { position: absolute; width: 100%; top: 16px; bottom: 0; pointer-events: none; }
+        .note-0 .note-hold-body,.note-3 .note-hold-body { background: linear-gradient(to bottom, rgba(240,20,122,0.3), rgba(240,20,122,0.08)); border-left: 2px solid rgba(240,20,122,0.45); border-right: 2px solid rgba(240,20,122,0.45); }
+        .note-1 .note-hold-body,.note-2 .note-hold-body { background: linear-gradient(to bottom, rgba(20,168,240,0.3), rgba(20,168,240,0.08)); border-left: 2px solid rgba(20,168,240,0.45); border-right: 2px solid rgba(20,168,240,0.45); }
+        .note-hold-tail-cap { position: absolute; bottom: 0; width: 60%; left: 20%; height: 4px; border-radius: 0 0 4px 4px; }
+        .note-0 .note-hold-tail-cap,.note-3 .note-hold-tail-cap { background: rgba(240,20,122,0.6); }
+        .note-1 .note-hold-tail-cap,.note-2 .note-hold-tail-cap { background: rgba(20,168,240,0.6); }
+        .timeline-wrap { width: 100%; }
+        .timeline-header { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 5px; }
+        .timeline-track { width: 100%; height: 22px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 5px; position: relative; cursor: pointer; overflow: hidden; }
+        .timeline-fill { position: absolute; inset-y: 0; left: 0; background: rgba(240,20,122,0.2); border-right: 2px solid var(--pink); pointer-events: none; box-shadow: 0 0 8px var(--pink-glow); }
+        .hud-row { display: flex; width: 100%; gap: 10px; }
+        .hud-card { flex: 1; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 14px; }
+        .hud-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px; }
+        .hud-value { font-size: 1.5rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--pink); }
+        .hud-value-combo { color: var(--cyan); }
+        .hud-value-rating { color: var(--blue); font-size: 1rem; }
+        .key-hints { position: absolute; bottom: 4px; width: 100%; display: flex; z-index: 6; pointer-events: none; }
+        .key-hint { width: 80px; text-align: center; font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .key-hint-0,.key-hint-3 { color: rgba(240,20,122,0.45); }
+        .key-hint-1,.key-hint-2 { color: rgba(20,168,240,0.45); }
+    </style>
+</head>
+<body>
+<nav class="nav">
+    <button class="tab-btn active" id="tab-studio" onclick="switchTab('studio')">Editor</button>
+    <button class="tab-btn" id="tab-play" onclick="switchTab('play')">Play</button>
+</nav>
+<div class="app-layout">
+    <!-- STUDIO -->
+    <div id="screen-studio" class="screen active">
+        <div class="sidebar">
+            <div class="sidebar-title">Silent Cadence</div>
+            <div class="ctrl-group">
+                <div class="section-label">Import</div>
+                <input type="file" id="zip-upload" accept=".zip">
+            </div>
+            <div class="hr"></div>
+            <div class="ctrl-group">
+                <div class="section-label">Audio</div>
+                <input type="file" id="audio-upload" accept="audio/*">
+                <div id="audio-status" class="badge badge-warn">No audio loaded</div>
+            </div>
+            <div class="hr"></div>
+            <div class="ctrl-group">
+                <div class="section-label">Grid</div>
+                <div class="ctrl-label">BPM</div>
+                <input type="number" id="editor-bpm" value="160">
+                <div class="ctrl-label">Snap Resolution</div>
+                <select id="editor-snap">
+                    <option value="4">1/4 — quarter notes</option>
+                    <option value="8">1/8 — eighth notes</option>
+                    <option value="16" selected>1/16 — sixteenth notes</option>
+                </select>
+            </div>
+            <div class="hr"></div>
+            <div class="autochart-panel">
+                <div class="section-label">Auto-Chart</div>
+                <div class="ctrl-label">Difficulty</div>
+                <div class="intensity-row">
+                    <button class="intensity-btn" data-diff="easy">Easy</button>
+                    <button class="intensity-btn active" data-diff="normal">Normal</button>
+                    <button class="intensity-btn" data-diff="hard">Hard</button>
+                    <button class="intensity-btn" data-diff="expert">EX</button>
+                </div>
+                <div class="ctrl-label">Chart Style</div>
+                <select id="ai-style">
+                    <option value="balanced">Balanced</option>
+                    <option value="rhythm">Rhythm-heavy</option>
+                    <option value="melody">Melody-heavy</option>
+                    <option value="technical">Technical (chords)</option>
+                </select>
+                <div class="autochart-progress-wrap" id="autochart-progress">
+                    <div class="autochart-progress-label" id="autochart-status-text">Analyzing...</div>
+                    <div class="autochart-progress-bar-bg">
+                        <div class="autochart-progress-bar-fill" id="autochart-bar"></div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="ai-autochart-btn">⚡ Generate Chart</button>
+                <button class="btn btn-danger" id="clear-chart-btn">Clear Chart</button>
+            </div>
+            <div class="hr"></div>
+            <button class="btn btn-toggle" id="studio-autoplay-btn">▶ Preview Audio: OFF</button>
+            <button class="btn btn-green" id="export-zip-btn">↓ Export Chart (.zip)</button>
+        </div>
+        <div class="main-stage">
+            <div class="stage-hint">Click to place note · Drag vertically for hold · Scroll to scrub</div>
+            <div class="game-viewport" id="studio-stage">
+                <div class="lane-bg lane-bg-0"></div>
+                <div class="lane-bg lane-bg-1"></div>
+                <div class="lane-bg lane-bg-2"></div>
+                <div class="lane-bg lane-bg-3"></div>
+                <div class="lane-divider" style="left:25%"></div>
+                <div class="lane-divider" style="left:50%"></div>
+                <div class="lane-divider" style="left:75%"></div>
+                <div id="studio-grid"></div>
+                <div class="hit-zone">
+                    <div class="receptor receptor-0"></div>
+                    <div class="receptor receptor-1"></div>
+                    <div class="receptor receptor-2"></div>
+                    <div class="receptor receptor-3"></div>
+                    <div class="hit-zone-line"></div>
+                </div>
+                <div id="studio-notes"></div>
+            </div>
+            <div class="timeline-wrap">
+                <div class="timeline-header">
+                    <span>Timeline</span>
+                    <span id="studio-time">0.00 / 0.00</span>
+                </div>
+                <div class="timeline-track" id="studio-timeline">
+                    <canvas id="density-canvas" style="position:absolute;inset:0;pointer-events:none;"></canvas>
+                    <div class="timeline-fill" id="studio-fill" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- PLAY -->
+    <div id="screen-play" class="screen">
+        <div class="sidebar">
+            <div class="sidebar-title">Play</div>
+            <div class="ctrl-group">
+                <div class="section-label">Import Chart</div>
+                <input type="file" id="play-zip-upload" accept=".zip">
+            </div>
+            <div class="hr"></div>
+            <div class="ctrl-group">
+                <div class="ctrl-label">Scroll Speed</div>
+                <input type="number" id="play-speed" value="550" step="50">
+            </div>
+            <div class="ctrl-group">
+                <div class="ctrl-label">Key Layout</div>
+                <select id="play-keys">
+                    <option value="dfjk">D · F · J · K</option>
+                    <option value="arrows">Arrow Keys</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="play-start-btn" style="margin-top:8px;">▶ Start</button>
+        </div>
+        <div class="main-stage">
+            <div class="hud-row">
+                <div class="hud-card">
+                    <div class="hud-label">Score</div>
+                    <div class="hud-value" id="play-score">0</div>
+                </div>
+                <div class="hud-card">
+                    <div class="hud-label">Combo</div>
+                    <div class="hud-value hud-value-combo" id="play-combo">0</div>
+                </div>
+                <div class="hud-card" style="flex:1.2">
+                    <div class="hud-label">Judgement</div>
+                    <div class="hud-value hud-value-rating" id="play-rating">READY</div>
+                </div>
+            </div>
+            <div class="game-viewport" id="play-stage">
+                <div class="lane-bg lane-bg-0"></div>
+                <div class="lane-bg lane-bg-1"></div>
+                <div class="lane-bg lane-bg-2"></div>
+                <div class="lane-bg lane-bg-3"></div>
+                <div class="lane-divider" style="left:25%"></div>
+                <div class="lane-divider" style="left:50%"></div>
+                <div class="lane-divider" style="left:75%"></div>
+                <div class="hit-zone">
+                    <div class="receptor receptor-0" id="pr0"></div>
+                    <div class="receptor receptor-1" id="pr1"></div>
+                    <div class="receptor receptor-2" id="pr2"></div>
+                    <div class="receptor receptor-3" id="pr3"></div>
+                    <div class="hit-zone-line"></div>
+                </div>
+                <div class="hit-flash hit-flash-0" id="hf0" style="left:0"></div>
+                <div class="hit-flash hit-flash-1" id="hf1" style="left:80px"></div>
+                <div class="hit-flash hit-flash-2" id="hf2" style="left:160px"></div>
+                <div class="hit-flash hit-flash-3" id="hf3" style="left:240px"></div>
+                <div id="play-notes"></div>
+                <div class="key-hints">
+                    <div class="key-hint key-hint-0" id="kh0">D</div>
+                    <div class="key-hint key-hint-1" id="kh1">F</div>
+                    <div class="key-hint key-hint-2" id="kh2">J</div>
+                    <div class="key-hint key-hint-3" id="kh3">K</div>
+                </div>
+            </div>
+            <div class="timeline-wrap">
+                <div class="timeline-track" style="cursor:default;">
+                    <div class="timeline-fill" id="play-fill" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ─── STATE ─── */
+let activeTab = 'studio';
+let audioCtx = null, audioBuffer = null, sourceNode = null;
+let isPlaying = false, startTime = 0, pausedTime = 0;
+let fallbackDuration = 120, currentBpm = 160, globalScrollSpeed = 550;
+let autoPlayInStudio = false;
+let dragStartLane = null, dragStartTime = null;
+let score = 0, combo = 0;
+let keybinds = { d:0, f:1, j:2, k:3 };
+const TIMING_WINDOW = 0.165;
+let loadedAudioFile = null;
+let chart = [];
+let selectedDifficulty = 'normal';
+
+const playFlashEls    = [0,1,2,3].map(i => document.getElementById('hf'+i));
+const playReceptorEls = [0,1,2,3].map(i => document.getElementById('pr'+i));
+
+function initAudioContext() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+/* ─── TABS ─── */
+function switchTab(tab) {
+    stopAudio(); activeTab = tab;
+    ['studio','play'].forEach(t => {
+        document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+        document.getElementById('screen-'+t).classList.toggle('active', t===tab);
+    });
+    resetGameplayState();
+}
+
+/* ─── AUDIO LOAD ─── */
+function processAudioBuffer(ab) {
+    initAudioContext();
+    audioCtx.decodeAudioData(ab, buf => {
+        audioBuffer = buf; fallbackDuration = buf.duration; pausedTime = 0;
+        const el = document.getElementById('audio-status');
+        el.textContent = 'Loaded · ' + buf.duration.toFixed(1) + 's';
+        el.className = 'badge badge-ok';
+        redrawDensityCanvas(); updateDisplay();
+    }, err => console.error('Decode error', err));
+}
+document.getElementById('audio-upload').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    loadedAudioFile = f;
+    const r = new FileReader();
+    r.onload = ev => processAudioBuffer(ev.target.result);
+    r.readAsArrayBuffer(f);
+});
+
+/* ─── AUTO-CHARTER ─── */
+document.querySelectorAll('.intensity-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.intensity-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDifficulty = btn.dataset.diff;
+    })
+);
+
+document.getElementById('ai-autochart-btn').addEventListener('click', async () => {
+    if (!audioBuffer) { alert('Load audio first.'); return; }
+    initAudioContext();
+
+    const diff   = selectedDifficulty;
+    const style  = document.getElementById('ai-style').value;
+    const bpm    = parseFloat(document.getElementById('editor-bpm').value) || 160;
+    const beatDur = 60 / bpm;
+    const snap   = parseInt(document.getElementById('editor-snap').value);
+    const stepDur = beatDur / (snap / 4);
+
+    const progressWrap = document.getElementById('autochart-progress');
+    const progressBar  = document.getElementById('autochart-bar');
+    const statusText   = document.getElementById('autochart-status-text');
+    const btn = document.getElementById('ai-autochart-btn');
+    progressWrap.classList.add('visible');
+    btn.disabled = true; btn.textContent = 'Analyzing…';
+
+    function setProgress(pct, label) {
+        progressBar.style.width = pct + '%';
+        statusText.textContent = label;
+    }
+
+    // ── STEP 1: Render to mono 22050 Hz via OfflineAudioContext ──
+    setProgress(5, 'Rendering offline…');
+    const targetSR = 22050;
+    let pcm, sr;
+    try {
+        const offCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * targetSR), targetSR);
+        const src2 = offCtx.createBufferSource();
+        src2.buffer = audioBuffer; src2.connect(offCtx.destination); src2.start(0);
+        const rendered = await offCtx.startRendering();
+        pcm = rendered.getChannelData(0); sr = rendered.sampleRate;
+    } catch(e) {
+        // Fallback: average all channels from original
+        const ch = [];
+        for (let c = 0; c < audioBuffer.numberOfChannels; c++) ch.push(audioBuffer.getChannelData(c));
+        pcm = new Float32Array(audioBuffer.length);
+        for (let i = 0; i < pcm.length; i++) { let s=0; ch.forEach(c=>s+=c[i]); pcm[i]=s/ch.length; }
+        sr = audioBuffer.sampleRate;
+    }
+
+    // ── STEP 2: Spectral flux onset detection ──
+    // We use a hop-based approach with a pseudo-FFT (sum of windowed sample energy per octave band)
+    setProgress(15, 'Computing spectral flux…');
+    await yieldAsync();
+
+    const hopSize = 441; // ~10ms at 44100, ~20ms at 22050
+    const winSize = 1024;
+    const halfWin = winSize >> 1;
+
+    // Hann window
+    const hann = new Float32Array(winSize);
+    for (let i=0;i<winSize;i++) hann[i] = 0.5*(1-Math.cos(2*Math.PI*i/winSize));
+
+    // Band boundaries in bins (bin 0 = DC, bin k = k*sr/winSize Hz)
+    const bHz = sr / winSize;
+    function hzBin(hz) { return Math.min(halfWin, Math.round(hz/bHz)); }
+    const BANDS = [
+        { name:'sub',  lo: hzBin(20),   hi: hzBin(80)   },
+        { name:'bass', lo: hzBin(80),   hi: hzBin(300)  },
+        { name:'mid',  lo: hzBin(300),  hi: hzBin(2000) },
+        { name:'high', lo: hzBin(2000), hi: hzBin(8000) },
+    ];
+    const maxBin = BANDS[3].hi + 1;
+
+    const numFrames = Math.floor((pcm.length - winSize) / hopSize);
+    const spectra = [];
+    // prev magnitude per bin (for flux)
+    const prevMag = new Float32Array(maxBin);
+
+    const CHUNK = 400;
+    for (let f0 = 0; f0 < numFrames; f0 += CHUNK) {
+        const fEnd = Math.min(f0+CHUNK, numFrames);
+        for (let f = f0; f < fEnd; f++) {
+            const off = f * hopSize;
+            // Naive real DFT on windowed frame — only for bins we need
+            // Use decimated step=4 for speed (aliasing is fine for onset detection)
+            const step = 4, N = winSize/step;
+            const mag = new Float32Array(maxBin);
+            for (let k = 0; k < maxBin; k++) {
+                let re=0, im=0;
+                for (let n=0;n<N;n++) {
+                    const si = off + n*step;
+                    if (si>=pcm.length) break;
+                    const w = hann[n*step];
+                    const ang = -2*Math.PI*k*n/N;
+                    re += pcm[si]*w*Math.cos(ang);
+                    im += pcm[si]*w*Math.sin(ang);
+                }
+                mag[k] = Math.sqrt(re*re+im*im);
+            }
+            // Spectral flux per band (half-wave rectified)
+            const entry = { time: off/sr };
+            for (const b of BANDS) {
+                let flux=0;
+                for (let k=b.lo; k<=b.hi && k<maxBin; k++) {
+                    const d = mag[k]-prevMag[k];
+                    if (d>0) flux+=d;
+                    prevMag[k]=mag[k];
+                }
+                entry[b.name]=flux;
+            }
+            spectra.push(entry);
+        }
+        setProgress(15 + Math.floor((f0/numFrames)*45), `Spectral flux ${Math.round(f0/numFrames*100)}%…`);
+        await yieldAsync();
+    }
+
+    setProgress(62, 'Detecting onsets…');
+    await yieldAsync();
+
+    // ── STEP 3: Adaptive threshold + local peak picking ──
+    const SMOOTH_W = 5, THRESH_W = 35;
+
+    function medianSmooth(arr, key, w) {
+        return arr.map((_, i) => {
+            let s=0, c=0;
+            for (let d=-w; d<=w; d++) { const idx=i+d; if(idx>=0&&idx<arr.length){s+=arr[idx][key];c++;} }
+            return s/c;
+        });
+    }
+
+    const smSub   = medianSmooth(spectra,'sub',  SMOOTH_W);
+    const smBass  = medianSmooth(spectra,'bass', SMOOTH_W);
+    const smMid   = medianSmooth(spectra,'mid',  SMOOTH_W);
+    const smHigh  = medianSmooth(spectra,'high', SMOOTH_W);
+
+    function adaptThresh(sm, mult) {
+        return sm.map((_, i) => {
+            let s=0,c=0;
+            for (let d=-THRESH_W;d<=THRESH_W;d++){const idx=i+d;if(idx>=0&&idx<sm.length){s+=sm[idx];c++;}}
+            return (s/c)*mult;
+        });
+    }
+
+    // Difficulty config
+    const DC = {
+        easy:   { bM:2.2,  mM:2.4,  hM:2.6,  minGapS: beatDur,     density:0.45, chords:false, holdP:0.08 },
+        normal: { bM:1.6,  mM:1.8,  hM:2.0,  minGapS: beatDur/2,   density:0.70, chords:false, holdP:0.18 },
+        hard:   { bM:1.3,  mM:1.45, hM:1.6,  minGapS: beatDur/4,   density:0.85, chords:true,  holdP:0.22 },
+        expert: { bM:1.15, mM:1.25, hM:1.4,  minGapS: beatDur/4,   density:1.0,  chords:true,  holdP:0.16 },
+    };
+    const p = DC[diff] || DC.normal;
+
+    // Style band weights
+    const SW = {
+        balanced:  { sub:0.4, bass:1.0, mid:1.0, high:0.7 },
+        rhythm:    { sub:0.7, bass:1.5, mid:0.5, high:0.3 },
+        melody:    { sub:0.1, bass:0.4, mid:1.4, high:1.2 },
+        technical: { sub:0.4, bass:1.0, mid:1.1, high:0.9 },
+    };
+    const sw = SW[style] || SW.balanced;
+
+    const thBass = adaptThresh(smBass, p.bM);
+    const thMid  = adaptThresh(smMid,  p.mM);
+    const thHigh = adaptThresh(smHigh, p.hM);
+
+    const minFrameGap = Math.floor((p.minGapS * sr) / hopSize);
+
+    const onsets = [];
+    let lastOF = -9999;
+
+    for (let i=2; i<spectra.length-2; i++) {
+        const bassHit  = smBass[i]>thBass[i] && smBass[i]>=smBass[i-1] && smBass[i]>=smBass[i+1];
+        const midHit   = smMid[i] >thMid[i]  && smMid[i] >=smMid[i-1]  && smMid[i] >=smMid[i+1];
+        const highHit  = smHigh[i]>thHigh[i] && smHigh[i]>=smHigh[i-1] && smHigh[i]>=smHigh[i+1];
+        if (!bassHit && !midHit && !highHit) continue;
+        if (i-lastOF < minFrameGap) continue;
+        if (Math.random() > p.density) continue;
+
+        const bStr = bassHit ? smBass[i]*sw.bass : 0;
+        const mStr = midHit  ? smMid[i] *sw.mid  : 0;
+        const hStr = highHit ? smHigh[i]*sw.high : 0;
+        const strength = bStr+mStr+hStr;
+
+        let type = 'melody';
+        if (bStr > mStr+hStr) type = 'bass';
+        else if (bStr > 0 && mStr+hStr > 0) type = 'both';
+
+        onsets.push({ time: spectra[i].time, strength, type, bStr, mStr, hStr });
+        lastOF = i;
+    }
+
+    setProgress(80, 'Assigning lanes…');
+    await yieldAsync();
+
+    // ── STEP 4: Snap to grid + lane assignment ──
+    function snapT(t) { return Math.round(t/stepDur)*stepDur; }
+
+    chart = [];
+    const usedKeys = new Set();
+    function addNote(t, lane, endTime) {
+        const k = t.toFixed(3)+'_'+lane;
+        if (usedKeys.has(k)) return;
+        usedKeys.add(k);
+        const n = { time: Math.round(t*1000)/1000, lane };
+        if (endTime && endTime > t+0.08) n.endTime = Math.round(endTime*1000)/1000;
+        chart.push(n);
+    }
+
+    // Lane sequencing — outer lanes for bass, inner for melody, with variety
+    // Bass patterns: pairs and singles on outer lanes
+    const bassPatterns = [[0,3],[0],[3],[0,3],[3,0],[0],[3],[0,3]];
+    // Melody patterns: spread across all 4 lanes for interest
+    const melPatterns  = [1,2,1,2,0,3,1,2,3,0,2,1,3,2,0,1,3,1,0,2,3,0];
+    let bIdx=0, mIdx=0;
+
+    for (let oi=0; oi<onsets.length; oi++) {
+        const o = onsets[oi];
+        const st = snapT(o.time);
+        if (st < 0.05) continue;
+
+        if (o.type==='bass' || o.type==='both') {
+            const pat = bassPatterns[bIdx % bassPatterns.length];
+            const lanes = p.chords ? pat : [pat[0]];
+            lanes.forEach(l => addNote(st, l));
+            bIdx++;
+        }
+
+        if (o.type==='melody' || o.type==='both') {
+            const lane = melPatterns[mIdx % melPatterns.length];
+            // Hold detection: look at gap to next onset
+            let holdEnd = null;
+            if (Math.random() < p.holdP && oi+1 < onsets.length) {
+                const gap = onsets[oi+1].time - o.time;
+                if (gap >= 0.22 && gap <= 1.6) {
+                    holdEnd = snapT(o.time + gap * 0.82);
+                    oi++; // consume next onset into this hold
+                }
+            }
+            addNote(st, lane, holdEnd);
+            mIdx++;
+        }
+    }
+
+    chart.sort((a,b)=>a.time-b.time);
+
+    // Deduplicate: same lane within 20ms
+    chart = chart.filter((n,i,arr) =>
+        !arr.slice(0,i).some(m => m.lane===n.lane && Math.abs(m.time-n.time)<0.02)
+    );
+
+    setProgress(100, `Done — ${chart.length} notes`);
+    await yieldAsync();
+    progressWrap.classList.remove('visible');
+    btn.disabled = false; btn.textContent = '⚡ Generate Chart';
+    progressBar.style.width = '0%'; statusText.textContent = '';
+
+    redrawDensityCanvas(); updateDisplay();
+});
+
+function yieldAsync() { return new Promise(r => setTimeout(r, 0)); }
+
+document.getElementById('clear-chart-btn').addEventListener('click', () => {
+    if (confirm('Clear all notes?')) { chart=[]; redrawDensityCanvas(); updateDisplay(); }
+});
+
+/* ─── DENSITY CANVAS ─── */
+function redrawDensityCanvas() {
+    const canvas = document.getElementById('density-canvas');
+    const track  = document.getElementById('studio-timeline');
+    canvas.width = track.clientWidth || 600; canvas.height = 22;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (!chart.length) return;
+    const dur = audioBuffer ? audioBuffer.duration : fallbackDuration;
+    chart.forEach(n => {
+        const x = (n.time/dur)*canvas.width;
+        ctx.fillStyle = (n.lane===0||n.lane===3) ? 'rgba(240,20,122,0.65)' : 'rgba(20,168,240,0.65)';
+        ctx.fillRect(x-1, 2, 2, 18);
+    });
+}
+
+/* ─── PLAYBACK ─── */
+function getCurrentTime() {
+    if (!isPlaying) return pausedTime;
+    return (audioCtx?audioCtx.currentTime:0) - startTime + pausedTime;
+}
+function togglePlayback() {
+    initAudioContext();
+    if (isPlaying) {
+        pausedTime = getCurrentTime();
+        if (sourceNode) { sourceNode.stop(); sourceNode=null; }
+        isPlaying = false;
+    } else {
+        isPlaying = true; startTime = audioCtx.currentTime;
+        if (audioBuffer) {
+            sourceNode = audioCtx.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.connect(audioCtx.destination);
+            sourceNode.start(0, pausedTime);
+        }
+        requestAnimationFrame(engineLoop);
+    }
+    updateDisplay();
+}
+function stopAudio() { if(isPlaying){if(sourceNode){sourceNode.stop();sourceNode=null;}isPlaying=false;} }
+function resetGameplayState() {
+    pausedTime=0; score=0; combo=0;
+    document.getElementById('play-score').textContent='0';
+    document.getElementById('play-combo').textContent='0';
+    document.getElementById('play-rating').textContent='READY';
+    document.getElementById('play-rating').style.color='#14a8f0';
+    chart.forEach(n=>{delete n.hit;delete n.holdPressed;});
+    updateDisplay();
+}
+document.getElementById('play-start-btn').addEventListener('click',()=>{resetGameplayState();togglePlayback();});
+document.getElementById('studio-autoplay-btn').addEventListener('click', e=>{
+    autoPlayInStudio=!autoPlayInStudio;
+    e.target.textContent=`▶ Preview Audio: ${autoPlayInStudio?'ON':'OFF'}`;
+    e.target.classList.toggle('on', autoPlayInStudio);
+    if(autoPlayInStudio&&!isPlaying) togglePlayback();
+});
+
+/* ─── GAME LOOP ─── */
+function engineLoop() {
+    if (!isPlaying) return;
+    const ct = getCurrentTime();
+    const dur = audioBuffer?audioBuffer.duration:fallbackDuration;
+    if (ct>=dur){isPlaying=false;resetGameplayState();return;}
+
+    if (activeTab==='studio'&&autoPlayInStudio) {
+        chart.forEach(n=>{if(n.time<=ct&&n.time>ct-0.025)triggerVisualFlash(n.lane);});
+    }
+    if (activeTab==='play') {
+        chart.forEach(n=>{
+            if(!n.hit&&(n.time-ct)<-TIMING_WINDOW){
+                n.hit=true;combo=0;
+                document.getElementById('play-combo').textContent=0;
+                document.getElementById('play-rating').textContent='MISS';
+                document.getElementById('play-rating').style.color='#f0147a';
+            }
+        });
+    }
+    updateDisplay();
+    requestAnimationFrame(engineLoop);
+}
+
+/* ─── DISPLAY ─── */
+function updateDisplay() {
+    const ct  = getCurrentTime();
+    const dur = audioBuffer?audioBuffer.duration:fallbackDuration;
+    globalScrollSpeed = parseInt(document.getElementById('play-speed').value)||550;
+    currentBpm = parseFloat(document.getElementById('editor-bpm').value)||160;
+    const pct = dur>0?(ct/dur)*100:0;
+    if (activeTab==='studio') {
+        document.getElementById('studio-time').textContent=ct.toFixed(2)+' / '+dur.toFixed(2);
+        document.getElementById('studio-fill').style.width=pct+'%';
+        renderGrid(ct); renderNotes(document.getElementById('studio-notes'),ct,true);
+    } else {
+        document.getElementById('play-fill').style.width=pct+'%';
+        renderNotes(document.getElementById('play-notes'),ct,false);
+    }
+}
+
+function renderGrid(ct) {
+    const container = document.getElementById('studio-grid');
+    container.innerHTML='';
+    const beatDur  = 60/currentBpm;
+    const snap     = parseInt(document.getElementById('editor-snap').value);
+    const stepDur  = beatDur/(snap/4);
+    const hitY     = 480;
+    const measDur  = beatDur*4;
+    const iStart   = Math.floor((ct - hitY/globalScrollSpeed)/stepDur);
+    const iEnd     = Math.ceil( (ct + (540-hitY)/globalScrollSpeed)/stepDur) + 2;
+    const beatStep = Math.round(beatDur/stepDur);
+    const measStep = Math.round(measDur/stepDur);
+
+    for (let i=iStart; i<=iEnd; i++) {
+        const t = i*stepDur; if(t<0) continue;
+        const y = hitY - ((t-ct)*globalScrollSpeed);
+        if (y<-10||y>550) continue;
+        const line = document.createElement('div');
+        line.className='grid-line';
+        line.style.top=y+'px';
+        if (i%measStep===0) {
+            line.classList.add('grid-measure');
+            const lbl=document.createElement('div');
+            lbl.className='grid-measure-label';
+            lbl.style.top=y+'px';
+            lbl.textContent='M'+(Math.floor(t/measDur)+1);
+            container.appendChild(lbl);
+        } else if (i%beatStep===0) {
+            line.classList.add('grid-beat');
+        } else {
+            line.classList.add('grid-sub');
+        }
+        container.appendChild(line);
+    }
+}
+
+function renderNotes(container, ct, isStudio) {
+    container.innerHTML='';
+    const hitY=480;
+    chart.forEach(note=>{
+        if(!isStudio&&note.hit&&!note.endTime) return;
+        const y=hitY-((note.time-ct)*globalScrollSpeed);
+        if(y<-3000||y>3000) return;
+        const div=document.createElement('div');
+        div.className='note note-'+note.lane;
+        if (note.endTime) {
+            const tailPx=(note.endTime-note.time)*globalScrollSpeed;
+            div.style.height=(tailPx+18)+'px';
+            div.style.top=(y-tailPx)+'px';
+            const body=document.createElement('div'); body.className='note-hold-body';
+            const cap=document.createElement('div');  cap.className='note-hold-tail-cap';
+            body.appendChild(cap); div.appendChild(body);
+        } else { div.style.top=y+'px'; }
+        container.appendChild(div);
+    });
+}
+
+/* ─── VISUAL FEEDBACK ─── */
+function triggerVisualFlash(lane) {
+    const el=playFlashEls[lane]; if(!el) return;
+    el.style.opacity='1'; setTimeout(()=>el.style.opacity='0',80);
+    const rec=playReceptorEls[lane];
+    if(rec){rec.style.opacity='1';setTimeout(()=>rec.style.opacity='',100);}
+}
+
+/* ─── EDITOR MOUSE ─── */
+document.getElementById('studio-stage').addEventListener('mousedown', e=>{
+    if(activeTab!=='studio') return; initAudioContext();
+    const rect=e.currentTarget.getBoundingClientRect();
+    dragStartLane=Math.floor((e.clientX-rect.left)/80);
+    const ct=getCurrentTime();
+    const snap=parseInt(document.getElementById('editor-snap').value);
+    const stepDur=(60/currentBpm)/(snap/4);
+    dragStartTime=Math.round((ct+((480-(e.clientY-rect.top))/globalScrollSpeed))/stepDur)*stepDur;
+});
+document.getElementById('studio-stage').addEventListener('mouseup', e=>{
+    if(activeTab!=='studio'||dragStartTime===null) return;
+    const rect=e.currentTarget.getBoundingClientRect();
+    const ct=getCurrentTime();
+    const snap=parseInt(document.getElementById('editor-snap').value);
+    const stepDur=(60/currentBpm)/(snap/4);
+    let end=Math.round((ct+((480-(e.clientY-rect.top))/globalScrollSpeed))/stepDur)*stepDur;
+    if(end<dragStartTime){let t=dragStartTime;dragStartTime=end;end=t;}
+    if(dragStartTime<0){dragStartTime=null;return;}
+    if(Math.abs(end-dragStartTime)<0.02){
+        const idx=chart.findIndex(n=>Math.abs(n.time-dragStartTime)<0.02&&n.lane===dragStartLane);
+        if(idx!==-1) chart.splice(idx,1);
+        else chart.push({time:Math.round(dragStartTime*1000)/1000,lane:dragStartLane});
+    } else {
+        chart.push({time:Math.round(dragStartTime*1000)/1000,endTime:Math.round(end*1000)/1000,lane:dragStartLane});
+    }
+    chart.sort((a,b)=>a.time-b.time);
+    dragStartTime=null; dragStartLane=null;
+    redrawDensityCanvas(); updateDisplay();
+});
+document.getElementById('studio-stage').addEventListener('wheel', e=>{
+    if(activeTab!=='studio') return; e.preventDefault();
+    const snap=parseInt(document.getElementById('editor-snap').value);
+    const stepDur=(60/currentBpm)/(snap/4);
+    const dur=audioBuffer?audioBuffer.duration:fallbackDuration;
+    pausedTime=Math.max(0,Math.min(dur,getCurrentTime()+(e.deltaY>0?-stepDur:stepDur)));
+    if(isPlaying){
+        if(sourceNode){sourceNode.stop();sourceNode=null;}
+        startTime=audioCtx.currentTime;
+        if(audioBuffer){sourceNode=audioCtx.createBufferSource();sourceNode.buffer=audioBuffer;sourceNode.connect(audioCtx.destination);sourceNode.start(0,pausedTime);}
+    }
+    updateDisplay();
+});
+document.getElementById('studio-timeline').addEventListener('click', e=>{
+    const rect=e.currentTarget.getBoundingClientRect();
+    pausedTime=((e.clientX-rect.left)/rect.width)*(audioBuffer?audioBuffer.duration:fallbackDuration);
+    if(isPlaying){
+        if(sourceNode){sourceNode.stop();sourceNode=null;}
+        startTime=audioCtx.currentTime;
+        if(audioBuffer){sourceNode=audioCtx.createBufferSource();sourceNode.buffer=audioBuffer;sourceNode.connect(audioCtx.destination);sourceNode.start(0,pausedTime);}
+    }
+    updateDisplay();
+});
+
+/* ─── PLAY INPUT ─── */
+window.addEventListener('keydown', e=>{
+    if(e.code==='Space'){e.preventDefault();togglePlayback();return;}
+    const lane=keybinds[e.key];
+    if(lane===undefined||activeTab!=='play'||!isPlaying) return;
+    triggerVisualFlash(lane);
+    const ct=getCurrentTime();
+    let best=null,bestD=Infinity;
+    chart.forEach(n=>{
+        if(n.lane!==lane||n.hit) return;
+        const d=Math.abs(n.time-ct);
+        if(d<bestD){bestD=d;best=n;}
+    });
+    if(best&&bestD<=TIMING_WINDOW){
+        const rd=document.getElementById('play-rating');
+        if(!best.endTime){
+            best.hit=true;
+            let pts=0,text='',color='';
+            if(bestD<=0.045)     {pts=350;text='SICK!!';color='#14f0d4';combo++;}
+            else if(bestD<=0.09) {pts=200;text='GOOD';  color='#14f07a';combo++;}
+            else if(bestD<=0.135){pts=50; text='BAD';   color='#f0c414';combo++;}
+            else                 {pts=-10;text='OOPS';  color='#f0147a';combo=0;}
+            score+=pts;
+            document.getElementById('play-score').textContent=Math.max(0,Math.floor(score));
+            document.getElementById('play-combo').textContent=combo;
+            rd.textContent=text; rd.style.color=color;
+        } else {
+            best.holdPressed=true; score+=250;
+            document.getElementById('play-score').textContent=Math.floor(score);
+            rd.textContent='HOLD'; rd.style.color='#14f0d4';
+        }
+    }
+});
+window.addEventListener('keyup', e=>{
+    const lane=keybinds[e.key];
+    if(lane===undefined||activeTab!=='play') return;
+    const ct=getCurrentTime();
+    chart.forEach(n=>{
+        if(n.lane===lane&&n.endTime&&n.holdPressed&&!n.hit){
+            n.hit=true;
+            const d=Math.abs(n.endTime-ct);
+            const rd=document.getElementById('play-rating');
+            if(d<=TIMING_WINDOW*1.2){combo++;score+=500;rd.textContent='HOLD MAX';rd.style.color='#14f0d4';}
+            else{combo=0;rd.textContent='HOLD BREAK';rd.style.color='#f0147a';}
+            document.getElementById('play-score').textContent=Math.floor(score);
+            document.getElementById('play-combo').textContent=combo;
+        }
+    });
+});
+document.getElementById('play-keys').addEventListener('change', e=>{
+    keybinds=e.target.value==='dfjk'?{d:0,f:1,j:2,k:3}:{ArrowLeft:0,ArrowDown:1,ArrowUp:2,ArrowRight:3};
+    const lbls=e.target.value==='dfjk'?['D','F','J','K']:['←','↓','↑','→'];
+    lbls.forEach((l,i)=>{const el=document.getElementById('kh'+i);if(el)el.textContent=l;});
+});
+
+/* ─── ZIP ─── */
+async function loadZipPackage(file) {
+    if(!file) return;
+    try {
+        const zip=await JSZip.loadAsync(file);
+        const cf=zip.file('chart.json');
+        if(cf){const p=JSON.parse(await cf.async('text'));chart=p.notes||[];if(p.bpm){currentBpm=p.bpm;document.getElementById('editor-bpm').value=currentBpm;}}
+        const af=zip.file('audio.mp3');
+        if(af){loadedAudioFile=await af.async('blob');processAudioBuffer(await loadedAudioFile.arrayBuffer());}
+        redrawDensityCanvas(); updateDisplay();
+    } catch(err){alert('Import failed: '+err.message);}
+}
+document.getElementById('zip-upload').addEventListener('change',e=>loadZipPackage(e.target.files[0]));
+document.getElementById('play-zip-upload').addEventListener('change',e=>loadZipPackage(e.target.files[0]));
+document.getElementById('export-zip-btn').addEventListener('click', async()=>{
+    if(!chart.length){alert('Chart is empty.');return;}
+    const zip=new JSZip();
+    zip.file('chart.json',JSON.stringify({bpm:currentBpm,notes:chart},null,2));
+    zip.file('audio.mp3',loadedAudioFile||new Blob([new Uint8Array(0)],{type:'audio/mp3'}));
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='silent_cadence_chart.zip';a.click();
+});
+
+document.getElementById('editor-bpm').addEventListener('input', updateDisplay);
+document.getElementById('editor-snap').addEventListener('change', updateDisplay);
+
+updateDisplay();
+</script>
+</body>
+</html>
